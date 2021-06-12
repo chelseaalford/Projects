@@ -1,0 +1,189 @@
+---
+title: "Case Study"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# How much should properties be worth in Milwaukee, Wisconsin? 
+
+
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readr)
+library(Hmisc)
+library(ggpubr)
+library(MASS)
+library(scales)
+library(corrplot)
+library(RColorBrewer)
+```
+
+
+## Introduction
+
+**Business Context.** Real estate markets can sometimes be irrational, and buying a house can certainly be an emotional and highly psychological process. For example, the asking price can [“anchor”](https://en.wikipedia.org/wiki/Anchoring) the negotiations, and it can be very hard as a buyer to “forget” that initial number.
+
+You are a property developer who frequently buys properties. It would be very useful to get a fair estimate of the price of a property before seeing the asking price, based on features like its size and location. Besides making you a more informed buyer, having a pricing model could have multiple uses, such as automatically detecting under-priced properties that come on the market, or estimating the value added to a property if it was extended, divided into apartments, or converted into offices.
+
+**Business Problem.** Your task is to **build a model to predict property prices in the city of Milwaukee, Wisconsin**.
+
+## Data exploration
+
+Let's start by taking a look at the available features:
+
+1. **PropType**: the property category (“Commercial”, “Residential”, “Lg Apartment”, “Vacant Land”, or “Condominium”)
+2. **Taxkey**: a unique identifier for the property
+3. **Address**: the street address of the property
+4. **CondoProject**: for condominiums, the name of the project
+5. **District**: integer between 1 and 15 identifying the city district
+6. **Nbhd**: integer identifying one of 591 neighborhoods
+7. **Style**: information about the building architectural style, commercial use or type of building
+8. **Extwall**: type of exterior wall (e.g. “Brick”)
+9. **Stories**: number of stories
+10. **Year_Built**: the year the building was built
+11. **Nr_of_rms**: number of rooms
+12. **Fin_sqft**: finished square feet
+13. **Units**: number of units (e.g. apartments) in the building
+14. **Bdrms**: number of bedrooms
+15. **Fbath**: number of full bathrooms
+16. **Hbath**: number of half bathrooms
+17. **Lotsize**: size of the lot in square feet
+18. **Sale_date**: the date of the sale in YYYY-MM-DD format
+19. **Sale_price**: sale price in US dollars
+
+Some tips:
+1. For the sake of removing potential confounding factors from consideration, focus on residential properties only (commercial properties are subject to all sorts of economic and market forces that residential properties are not). Also feel free to filter out other variables
+too (such as properties only above year 1800 etc).
+2. Pay attention to missing values. Sometimes missing numbers are entered as zeros, which can mess up the analysis (see `Lotsize` below as an example). Before proceeding, remove rows with zeros in `Year_Built`, `Fin_sqft`, `Lotsize`, and `Sale_price`, as these are the numerical variables where erroneous zero values can skew the distribution.
+
+##Data Cleaning
+
+```{r}
+data <- read.csv("data.csv", header=TRUE)
+data$Sale_date <- as.character(data$Sale_date)
+data$Sale_date <- parse_date(data$Sale_date, format="%Y-%m")
+
+data1 <- data[data$Lotsize!=0,] # exclude Lotsize equal 0 sq ft
+data1 <- data1[data1$Fin_sqft!=0,] # exclude finished square feet equal 0 sq ft
+data1 <- data1[data1$Year_Built > 1800,] # exclude the properties with unknown building year or were built before 1800 (two properties were built at 200 AC and 920 AC)
+data1 <- data1[data1$PropType == "Residential",] # focus on residential properties only
+data1 <- data1[data1$Sale_price != 0,] # exclude free property
+data1 <- data1[data1$Extwall!= "",] # exclude one missing value under Extwall
+data1 <- data1[data1$Bdrms!=2031,] # exclude a property with 2031 bedrooms
+data1 <- data1[data1$Nr_of_rms != 0,] # exclude the variable Nr_of_rms from the data set because it is an empty variable with all zeroes
+data1 <- data1[data1$Units !=0,]  # exclude one property with zero unit
+data1 <- data1[data1$Bdrms != 0,] # exclude eight properties with zero bedrooms
+```
+
+##Exploratory Data Analysis
+
+```{r}
+#this code creates a correlation matrix with all of the numerical variables in our data 
+df <- data.frame(Stories = data1$Stories, Year_Built = data1$Year_Built,Fin_sqft = data1$Fin_sqft, Units = data1$Units, Bdrms = data1$Bdrms,Fbath = data1$Fbath, Hbath = data1$Hbath, Lotsize = data1$Lotsize,Sale_price = data1$Sale_price)
+datacor <- cor(df)
+corrplot(datacor, method = 'circle')
+
+```
+
+```{r}
+
+#the code below explores the relationship between exterior wall and sale price using a box plot visualization
+
+ggplot(data1, aes(x=factor(Extwall), y=Sale_price, group=factor(Extwall), fill=factor(Extwall))) + geom_boxplot() + labs(title="Price Based on Type of Exterior Wall") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+#we conclude that the extwall variable does not have a significant relationship with sale price and therefore will not include this variable in our model
+```
+
+```{r}
+
+#the code below explores the relationship between price and finished square feet with a scatterplot and the linear relationship overlaid on the data points
+
+ggplot(data1, aes(x=Fin_sqft, y=Sale_price)) + geom_point(color="dodgerblue4") + labs(title="Price vs. Fin_sqft") + geom_smooth(formula=y~x, method=lm, color="red", level=0.95, se=FALSE) + theme(plot.title=element_text(hjust=0.5)) +  scale_y_continuous(labels=function(y){y/10^6})
+
+```
+
+```{r}
+
+# the code below explores the relationship between log price and log finished square feet with a scatterplot and the linear relationship overlaid on the data points
+
+# this plot will help us determine if a transformation is necessary for these variables
+
+ggplot(data1, aes(x=log(Fin_sqft), y=log(Sale_price))) + geom_point(color="dodgerblue4") + labs(title="Log Price vs. Log Fin_sqft") + geom_smooth(formula=y~x, method=lm, color="red", level=0.95, se=FALSE) + theme(plot.title=element_text(hjust=0.5)) + scale_y_continuous(labels=function(y){y/10^6})
+
+```
+```{r}
+
+# the code below explores the relationship between the number of bedrooms and the sale price of a home through a box plot
+
+ggplot(data1, aes(x=factor(Bdrms), y=Sale_price, group=factor(Bdrms), fill=factor(Bdrms))) + geom_boxplot() + labs(title="Price Based on Number of Bedrooms") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
+
+```{r}
+
+# the code below explores the relationship between the number of full bathrooms and the sale price of a home with a box plot visualization
+
+ggplot(data1, aes(x=factor(Fbath), y=Sale_price, group=factor(Fbath), fill=factor(Fbath))) + geom_boxplot() + labs(title="Price Based on Number of Full Bathrooms") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
+
+
+``` {r}
+
+# the code below explores the relationship between the number of half bathrooms and the sale price of a home with a box plot visualization
+
+ggplot(data1, aes(x=factor(Hbath), y=Sale_price, group=factor(Hbath), fill=factor(Hbath))) + geom_boxplot() + labs(title="Price Based on Number of Half Bathrooms") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
+
+
+```{r}
+
+#this code creates a new variable "Tbath" that represents the total number of bathrooms for each house
+
+Tbath <- data1$Fbath+(0.5 * data1$Hbath)
+cor(data1$Sale_price, Tbath) #correlation between Tbath and sale price
+
+#this code counts the number of houses with number of total bathrooms greater than zero (see box plot below for this significance)
+
+count = 0
+for (x in Tbath){
+  if (x > 6){
+    count = count+1
+  }
+}
+print(count)
+
+#the code below explores the relationship between total number of bathrooms and a home's sale price through a box plot visualization 
+ggplot(data1, aes(x=factor(Tbath), y=Sale_price, group=factor(Tbath), fill=factor(Tbath))) + geom_boxplot() + labs(title="Price Based on Number of Total Bathrooms") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
+  
+
+```{r}
+
+# the code below explores the relationship between the categorical variable "style" and sale price of a home through a box plot visualization 
+
+ggplot(data1, aes(x=factor(Style), y=Sale_price, group=factor(Style), fill=factor(Style))) + geom_boxplot() + labs(title="Price Based on Style") + theme(legend.position="none", plot.title=element_text(hjust=0.5),axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+
+```
+
+
+``` {r}
+
+# the code below explores the relationship between the number of stories in a home and its sale price through a box plot visualization
+
+ggplot(data1, aes(x=factor(Stories), y=Sale_price, group=factor(Stories), fill=factor(Stories))) + geom_boxplot() + labs(title="Price Based on Number of Stories") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
+
+
+``` {r}
+
+# the code below explores the relationship between districts and sale price of a home through a box plot visualization
+
+ggplot(data1, aes(x=factor(District), y=Sale_price, group=factor(District), fill=factor(District))) + geom_boxplot() + labs(title="Price Based on District Number") + theme(legend.position="none", plot.title=element_text(hjust=1))
+
+```
