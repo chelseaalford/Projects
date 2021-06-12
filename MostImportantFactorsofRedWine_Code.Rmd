@@ -1,0 +1,790 @@
+---
+title: 'Individual Project: Red Wine Analysis'
+author: "Chelsea Alford"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Loading Necessary Packages
+```{r}
+library(ggplot2) 
+library(ggcorrplot) 
+library(randomForest)
+library(rpart) 
+library(tree)
+```
+
+
+
+##DATA PREPARATION
+```{r}
+data <- read.csv('winequality-red.csv')
+str(data)
+
+#creating a data frame for visualizations with rounded values that are easier to display
+datavis <- round(data, digits = 4)
+summary(datavis)
+```
+
+
+
+#EXPLORATORY DATA ANALYSIS
+
+#Frequency Distribution of Quality
+```{r}
+#frequency plot for quality
+
+ggplot(data, aes(factor(quality))) + geom_bar(fill = "light blue") + labs(x = "Quality", y="Frequency", title = "Frequency Distribution for Quality Ratings") + theme( plot.title=element_text(hjust=0.5))
+```
+
+
+#Correlation Matrix
+```{r}
+#correlation matrix 
+
+ggcorrplot(cor(data), lab=FALSE)
+```
+
+
+#Highly Correlated Regressors
+```{r}
+#investigating the higher correlations between regressors in the correlation matrix to avoid multicollinearity
+#define highly correlated as cor >= 0.3
+
+multicolcor <- abs(cor(data)) >= 0.3
+
+freeVtot <- cor(data$free.sulfur.dioxide, data$total.sulfur.dioxide)
+denVfa <- cor(data$density, data$fixed.acidity)
+caVfa <- cor(data$citric.acid, data$fixed.acidity)
+pHVden <- cor(data$pH, data$density)
+pHVca <- cor(data$pH, data$citric.acid)
+alcVden <- cor(data$alcohol, data$density)
+caVva <- cor(data$citric.acid, data$volatile.acidity)
+pHVfa <- cor(data$pH, data$fixed.acidity)
+caVden <- cor(data$citric.acid, data$density)
+caVsulph <- cor(data$citric.acid, data$sulphates)
+rsVden <- cor(data$residual.sugar, data$density)
+chlorVsulph <- cor(data$chlorides, data$sulphates)
+
+cors <- c(caVfa, denVfa, freeVtot, chlorVsulph, caVden, rsVden, caVsulph, pHVden, alcVden, pHVca, caVva, pHVfa)
+
+cornames <- c("ca v fa", "den v fa", "free v tot", "chlor v sulph", "ca v den", "rs v den", "ca v sulph", "pH vs den", "alc v den", "pH v ca", "ca v va", "pH v fa")
+
+names(cors) <- cornames
+
+cors
+```
+
+
+#Correlation of each dependent variable with Quality
+```{r}
+#basic correlation chart with quality
+
+corfa <- cor(data$quality, data$fixed.acidity)
+corva <- cor(data$quality, data$volatile.acidity)
+corca <- cor(data$quality, data$citric.acid)
+corrs <- cor(data$quality, data$residual.sugar)
+corchlor <- cor(data$quality, data$chlorides)
+corfree <- cor(data$quality, data$free.sulfur.dioxide)
+cortot <- cor(data$quality, data$total.sulfur.dioxide)
+corden <- cor(data$quality, data$density)
+corpH <- cor(data$quality, data$pH)
+corsulph <- cor(data$quality, data$sulphates)
+coralc <- cor(data$quality, data$alcohol)
+
+qualitycors <- c(coralc, corsulph, corca, corfa, corrs, corfree, corpH, corchlor, corden, cortot, corva)
+
+qualitycornames <- c("alc", "sulph", "ca", "fa", "rs", "free", "pH", "chlor", "den", "tot", "va")
+
+names(qualitycors) <- qualitycornames
+
+qualitycors
+```
+
+
+#Boxplots of each dependent varaible with Quality
+```{r}
+#relationship between sugar content and quality
+
+ggplot(datavis, aes(x=factor(quality), y=residual.sugar, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "Residual Sugar", title="Sugar Content vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+```
+
+
+```{r}
+#relationship between alcohol content and quality
+
+ggplot(datavis, aes(x=factor(quality), y=alcohol, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "Alcohol Content", title="Alcohol vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+```
+
+
+```{r}
+#relationship between chlorides and quality
+
+ggplot(datavis, aes(x=factor(quality), y=chlorides, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "Chlorides", title="Chlorides vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+```
+
+
+```{r}
+#relationship between density and quality
+
+ggplot(datavis, aes(x=factor(quality), y=density, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "Density", title="Density vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+```
+
+
+```{r}
+#relationship between pH and quality
+
+ggplot(datavis, aes(x=factor(quality), y=pH, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "pH", title="pH vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+```
+
+
+```{r}
+#relationship between sulphates and quality
+
+ggplot(datavis, aes(x=factor(quality), y=sulphates, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() + 
+  labs(x = "Quality", y= "Sulphates", title="Sulphates vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+```
+
+
+```{r}
+#relationship between sulfur dioxide content and quality
+
+total <- ggplot(datavis, aes(x=factor(quality), y=total.sulfur.dioxide, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() +
+  labs(x = "Quality", y= "Total Sulfur Dioxide", title="Total Sulfur Dioxide vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+free <- ggplot(datavis, aes(x=factor(quality), y=free.sulfur.dioxide, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() +
+  labs(x = "Quality", y= "Free Sulfur Dioxide", title="Free Sulfur Dioxide vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+ggarrange(free, total, row = 1, col = 2)
+```
+
+
+```{r}
+#relationship between acidic content and quality
+
+fixed <- ggplot(datavis, aes(x=factor(quality), y=fixed.acidity, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() +
+  labs(x = "Quality", y= "Fixed Acidity", title="Fixed Acidity vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+volatile <- ggplot(datavis, aes(x=factor(quality), y=volatile.acidity, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() +
+  labs(x = "Quality", y= "Volatile Acidity", title="Volatile Acidity vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+citric <- ggplot(datavis, aes(x=factor(quality), y=citric.acid, group=factor(quality), fill=factor(quality))) + 
+  geom_boxplot() +
+  labs(x = "Quality", y= "Citric Acid", title="Citric Acid vs. Quality") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + coord_flip()
+
+ggarrange(fixed, volatile, citric, row = 1, col = 3)
+```
+
+
+#Categorizing wines as high-quality, medium-quality, or low-quality
+```{r}
+#creating a new column for categorizing wines by high, medium, or low quality ratings
+
+qual <- data$quality
+qualitytype <- c()
+
+for (x in qual) {
+  if (x <= 4) {qualitytype = c(qualitytype, "low")}
+  else if(x >= 7) {qualitytype = c(qualitytype, "high")}
+  else {qualitytype = c(qualitytype, "medium")}
+}
+
+qualityfactor <- factor(qualitytype, ordered = TRUE, levels = c("low", "medium", "high"))
+data1 <- cbind(data, qualityfactor)
+summary(data1)
+```
+
+
+```{r}
+#frequency plot for quality types
+
+ggplot(data1, aes(factor(qualitytype))) + geom_bar(fill = "blue") + labs(x = "Quality Type", y="Frequency", title = "Frequency Distribution for Quality Types") + theme( plot.title=element_text(hjust=0.5))
+```
+
+
+#Density Plots of each dependent variable by Quality Type
+```{r}
+#density plot for pH compared to quality
+
+ggplot(data1, aes(x= pH, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of pH by Quality Type"))
+```
+
+
+```{r}
+#density plot for density of wine compared to quality
+
+ggplot(data1, aes(x= density, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Wine by Quality Type"))
+```
+
+
+```{r}
+#density plot for alcohol content compared to quality
+
+ggplot(data1, aes(x= alcohol, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Alcohol Content by Quality Type"))
+```
+
+
+```{r}
+#density plot for sulphates compared to quality
+
+ggplot(data1, aes(x=sulphates, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Sulphate Content by Quality Type"))
+```
+
+
+```{r}
+#density plot for fixed acidity compared to quality
+
+ggplot(data1, aes(x= fixed.acidity, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Fixed Acidity by Quality Type"))
+```
+
+
+```{r}
+#density plot for volatile acidity compared to quality
+
+ggplot(data1, aes(x= volatile.acidity, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Volatile Acidity by Quality Type"))
+```
+
+
+```{r}
+#density plot for citric acid compared to quality
+
+ggplot(data1, aes(x=citric.acid, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Citric Acid by Quality Type"))
+```
+
+
+```{r}
+#density plot for residual sugar compared to quality
+
+ggplot(data1, aes(x= residual.sugar, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Residual Sugar by Quality Type"))
+```
+
+
+```{r}
+#density plot for chlorides compared to quality
+
+ggplot(data1, aes(x= chlorides, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Chlorides by Quality Type"))
+```
+
+
+```{r}
+#density plot for free sulfur dioxide compared to quality
+
+ggplot(data1, aes(x= free.sulfur.dioxide, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Free Sulfur Dioxide by Quality Type"))
+```
+
+
+```{r}
+#density plot for total sulfur dioxide compared to quality
+
+ggplot(data1, aes(x= total.sulfur.dioxide, fill = qualityfactor)) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("low", "medium","high"))  + 
+  labs(title = element_text("Density of Total Sulfur Dioxide by Quality Type"))
+```
+
+
+#Scatterplots of Quality of Individual Wines by each dependent variable
+```{r}
+#printing out one instance of each graph with legend for the corresponding scatterplots 
+
+#the remainder of the scatterplots will not have a legend for the sake of space, but one can see the legend here, and it is the same for all of the following scatterplots 
+
+legendfactors <- ggplot(data = data1, aes(ID, alcohol)) + geom_point(aes(color = qualityfactor), show.legend = TRUE) + labs(x= "Wines", y = "Alcohol") + theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+legendcontinuous <- ggplot(data = data, aes(ID, alcohol)) + geom_point(aes(color = quality), show.legend = TRUE) + labs(x= "Wines", y = "Alcohol Content") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+#graph with legend for factored wine quality
+legendfactors
+```
+
+
+```{r}
+#graph with legend for continuous wine quality
+legendcontinuous
+```
+
+
+```{r}
+#scatterplot of alcohol content of individual wines by quality ratings (factored)
+
+alcf <- ggplot(data = data1, aes(ID, alcohol)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Alcohol") + theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())
+
+#scatterplot of alcohol content of individual wines by quality ratings (continuous)
+
+alcc <- ggplot(data = data, aes(ID, alcohol)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(alcf, alcc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of sulphates of individual wines by quality ratings (factored)
+
+sulphf <- ggplot(data = data1, aes(ID, sulphates)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Sulphates") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of sulphates of individual wines by quality ratings (continuous)
+
+sulphc <- ggplot(data = data, aes(ID, sulphates)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(sulphf, sulphc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of pH of individual wines by quality ratings (factored)
+
+pHf <- ggplot(data = data1, aes(ID, pH)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "pH") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of pH of individual wines by quality ratings (continuous)
+
+pHc <- ggplot(data = data, aes(ID, pH)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(pHf, pHc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of density of individual wines by quality ratings (factored)
+
+densityf <- ggplot(data = data1, aes(ID, density)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Density") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of density of individual wines by quality ratings (continuous)
+
+densityc <- ggplot(data = data, aes(ID, density)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(densityf, densityc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of fixed acidity of individual wines by quality ratings (factored)
+
+faf <- ggplot(data = data1, aes(ID, fixed.acidity)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Fixed Acidity") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of fixed acidity of individual wines by quality ratings (continuous)
+
+fac <- ggplot(data = data, aes(ID, fixed.acidity)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(faf, fac, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of volatile acidity of individual wines by quality ratings (factored)
+
+vaf <- ggplot(data = data1, aes(ID, volatile.acidity)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Volatile Acidity") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of volatile acidity of individual wines by quality ratings (continuous)
+
+vac <- ggplot(data = data, aes(ID, volatile.acidity)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(vaf, vac, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of citric acid of individual wines by quality ratings (factored)
+
+caf <- ggplot(data = data1, aes(ID, citric.acid)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Citric Acid") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of citric acid of individual wines by quality ratings (continuous)
+
+cac <- ggplot(data = data, aes(ID, citric.acid)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(caf, cac, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of residual sugar of individual wines by quality ratings (factored)
+
+rsf <- ggplot(data = data1, aes(ID, residual.sugar)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Residual Sugar") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of residual sugar of individual wines by quality ratings (continuous)
+
+rsc <- ggplot(data = data, aes(ID, residual.sugar)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(rsf, rsc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of chlorides of individual wines by quality ratings (factored)
+
+chlorf <- ggplot(data = data1, aes(ID, chlorides)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Chlorides") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of chlorides of individual wines by quality ratings (continuous)
+
+chlorc <- ggplot(data = data, aes(ID, chlorides)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(chlorf, chlorc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of free sulfur dioxide of individual wines by quality ratings (factored)
+
+freesulff <- ggplot(data = data1, aes(ID, free.sulfur.dioxide)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Free Sulfur Dioxide") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of free sulfur dioxide of individual wines by quality ratings (continuous)
+
+freesulfc <- ggplot(data = data, aes(ID, free.sulfur.dioxide)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y = "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(freesulff, freesulfc, row = 1, col = 2)
+```
+
+
+```{r}
+#scatterplot of total sulfur dioxide of individual wines by quality ratings (factored)
+
+totsulff <- ggplot(data = data1, aes(ID, total.sulfur.dioxide)) + geom_point(aes(color = qualityfactor), show.legend = FALSE) + labs(x= "Wines", y = "Total Sulfur Dioxide") + theme(axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+#scatterplot of total sulfur dioxide of individual wines by quality ratings (continuous)
+
+totsulfc <- ggplot(data = data, aes(ID, total.sulfur.dioxide)) + geom_point(aes(color = quality), show.legend = FALSE) + labs(x= "Wines", y= "") + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggarrange(totsulff, totsulfc, row = 1, col = 2)
+```
+
+
+
+#ANALYSIS
+
+#Bootstrapping the data
+```{r}
+#setting a seed so that the analysis is reproducible
+set.seed(1998)  
+
+#setting up a train/test dataset 
+##using convention of 80% train data, 20% test data
+ndata <- nrow(data)
+train_index <- sample(1:ndata, size=0.8*ndata, rep=FALSE)
+test_index <- setdiff(1:ndata, train_index)
+train <- data[train_index,]
+test <- data[test_index,]
+
+#bootstrapping 
+set.seed(1899)
+trainboot <- train[1,]
+trainboot[,] <- NA
+for (i in 1:3200) {
+  trainboot[i,] <- train[sample(1:1279, replace = TRUE,1),]
+}
+
+str(trainboot)
+```
+
+
+
+#MODELING
+
+#Linear Regression Models
+```{r}
+#model1 with all regressors included, original data
+
+lm1 <- lm(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates + alcohol, data = data)
+
+summary(lm1)
+```
+
+
+```{r}
+#model2 with only significant regressors included, original data 
+#significant regessors are: volatile acidity, chlorides, free sulfur dioxide, total sulfur dioxide, pH, sulphates, alcohol
+
+lm2 <- lm(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = data)
+
+summary(lm2)
+```
+
+
+```{r}
+#model3 with all regressors included, bootstrap data
+
+lm3 <- lm(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates + alcohol, data = trainboot)
+
+summary(lm3)
+```
+
+
+```{r}
+#model4 with only significant regressors included, bootstrap data
+#significant regressors are: fixed acidity, volatile acidity, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, sulphates, alcohol
+
+lm4 <- lm(quality ~ fixed.acidity + volatile.acidity + residual.sugar + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + sulphates + alcohol, data = trainboot)
+
+summary(lm4)
+```
+
+
+#Random Forest Models
+```{r}
+#running a random forest with the original data
+
+model5 <- randomForest(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = data, nodesize = 3, ntree = 1000, mtry = 7)
+
+model5
+```
+
+
+```{r}
+#running a random forest with the bootstrapped data
+
+model6 <- randomForest(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = trainboot, nodesize = 3, ntree = 1000, mtry = 7)
+
+model6 
+```
+
+
+#Classification Trees
+```{r}
+#classification tree on original data
+
+model7 <- tree(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = data)
+par(xpd = NA) 
+plot(model7) + text(model7)
+```
+
+
+```{r}
+#classification tree on bootstrapped data
+
+model8 <- tree(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = trainboot)
+par(xpd = NA) 
+plot(model8) + text(model8)
+```
+
+
+```{r}
+#CART on original data
+
+model9 <- rpart(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = data)
+par(xpd = NA) 
+plot(model9) + text(model9)
+```
+
+
+```{r}
+#CART on bootstrapped data
+
+model10 <- rpart(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data = trainboot)
+par(xpd = NA) 
+plot(model10) + text(model10)
+
+```
+
+
+
+#EVALUATION
+
+#evaluations only performed with models 1-6 since the trees for models 7-10 are not evaluated similarly and thus cannot be compared
+
+```{r}
+#running predictions on the linear models using original data
+predictions1 <- predict(lm1)
+predictions2 <- predict(lm2)
+
+#running predictions of the bootstrap models on the test set
+predictions3 <- predict(lm3, newdata=test)
+predictions4 <- predict(lm4, newdata=test)
+true_values <- test$quality
+
+#running predictions of the randomForest models
+predictions5 <- predict(model5)
+predictions6 <- predict(model6, newdata=test)
+```
+
+
+```{r}
+#mean absolute error
+MAE <- function(prediction, true_values) {
+    return (mean(abs(prediction-true_values)))
+}
+
+MAE1 <- MAE(predictions1, true_values)
+MAE2 <- MAE(predictions2, true_values)
+MAE3 <- MAE(predictions3, true_values)
+MAE4 <- MAE(predictions4, true_values)
+MAE5 <- MAE(predictions5, true_values)
+MAE6 <- MAE(predictions6, true_values)
+
+allMAE <- c(round(MAE1, digits = 4), round(MAE2, digits = 4), round(MAE3, digits = 4), round(MAE4, digits = 4), round(MAE5, digits = 4), round(MAE6, digits = 4))
+namedMAE <- c("model1", "model2", "model3", "model4", "model5", "model6")
+names(allMAE) <- namedMAE
+allMAE
+```
+
+
+```{r}
+#root mean squared error
+RMSE <- function(predictions, true_values) {
+    return (sqrt(mean((predictions-true_values)^2)))
+}
+
+RMSE1 <- RMSE(predictions1, true_values)
+RMSE2 <- RMSE(predictions2, true_values)
+RMSE3 <- RMSE(predictions3, true_values)
+RMSE4 <- RMSE(predictions4, true_values)
+RMSE5 <- RMSE(predictions5, true_values)
+RMSE6 <- RMSE(predictions6, true_values)
+
+allRMSE <- c(round(RMSE1, digits = 4), round(RMSE2, digits = 4), round(RMSE3, digits = 4), round(RMSE4, digits = 4), round(RMSE5, digits = 4), round(RMSE6, digits = 4))
+namedRMSE <- c("model1", "model2", "model3", "model4", "model5", "model6")
+names(allRMSE) <- namedRMSE
+allRMSE
+
+```
+
+
+```{r}
+#mean absolute percentage error
+MAPE <- function(predictions, true_values) {
+    return (mean(abs((predictions - true_values) / true_values)))
+}
+
+MAPE1 <- MAPE(predictions1, true_values)
+MAPE2 <- MAPE(predictions2, true_values)
+MAPE3 <- MAPE(predictions3, true_values)
+MAPE4 <- MAPE(predictions4, true_values)
+MAPE5 <- MAPE(predictions5, true_values)
+MAPE6 <- MAPE(predictions6, true_values)
+
+allMAPE <- c(round(MAPE1, digits = 4), round(MAPE2, digits = 4), round(MAPE3, digits = 4), round(MAPE4, digits = 4), round(MAPE5, digits = 4), round(MAPE6, digits = 4))
+namedMAPE <- c("model1", "model2", "model3", "model4", "model5", "model6")
+names(allMAPE) <- namedMAPE
+allMAPE
+
+```
+
+
+```{r}
+#AIC scores for linear models 1-4
+AIC1 <- AIC(lm1)
+AIC2 <- AIC(lm2)
+AIC3 <- AIC(lm3)
+AIC4 <- AIC(lm4)
+
+allAIC <- c(round(AIC1, digits = 4), round(AIC2, digits = 4), round(AIC3, digits = 4), round(AIC4, digits = 4))
+namedAIC <- c("model1", "model2", "model3", "model4")
+names(allAIC) <- namedAIC
+allAIC
+```
+
+
+```{r}
+#exploration of potential multicollinearity in models
+#based on EDA, there may be a multicollinearity issue with some of the regressors
+
+#VIF scores
+VIF1 <- vif(lm1)
+VIF2 <- vif(lm2)
+VIF3 <- vif(lm3)
+VIF4 <- vif(lm4)
+
+VIF1
+VIF2
+VIF3
+VIF4
+#no VIF scores > 10
+```
+
+
