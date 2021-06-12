@@ -1,0 +1,1052 @@
+Team Project
+Team 29
+Isaac Parker, Danielle Shediac, Lin Lin, Chelsea Alford, Junhong Wengtan
+Duke University MQM 2021
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+PACKAGES LIBRARY:
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(ggcorrplot)
+library(Hmisc)
+library(MASS)
+library(glmnet)
+library(Hmisc)
+library(data.table)
+library(readxl)
+```
+
+
+
+
+
+*You must first import both the 'GDP_Per_Capita_ dataset and the Oxford dataset using the 'import dataset' > from Excel command in the top right-hand corner of R-studio. For some reason the readxl package has trouble using 
+DATASETS:
+```{r}
+data <- read.csv('OxCGRT_Download_latest_data.csv')
+data2 <- read.csv('COVID_data.csv')
+data <- data.frame(data)
+data2 <- data.frame(data2)
+```
+
+
+DATA EXPLANATION & DICTIONARY:
+
+The data from Oxford is based on a scale regarding the strength of measurements taken by governments. The scale for each variable is below: 
+
+**No data = blank 
+
+S1 School closing
+
+0 - No measures
+1 – Recommend closing, or all schools open with alterations resulting in significant differences compared to usual, non-Covid-19 operations
+2 - Require closing (only some levels or categories, eg just high school, or just public schools)
+3 - Require closing all levels
+
+
+
+S2 Workplace Closing 
+
+0 - No measures
+1 - recommend closing (or work from home)
+2 - require closing (or work from home) for some sectors or categories of workers
+3 - require closing (or work from home) all-but-essential workplaces (e.g. grocery stores, doctors)
+
+
+
+S3 Cancel Public Events
+
+0- No measures
+1 - Recommend cancelling 
+2 - Require cancelling
+
+
+
+S4 Close Public Transport 
+
+0 - No measures
+1 - Recommend closing (or significantly reduce volume/route/means of transport available)
+2 - Require closing (or prohibit most citizens from using it)
+
+
+
+S5 Public Information Campaigns 
+
+0 -No COVID-19 public information campaign
+1 - public officials urging caution about COVID-19
+2 - coordinated public information campaign (e.g. across traditional and social media)
+
+
+
+S6 Restrictions on Internal Movement
+
+0 - No measures
+1 - Recommend not to travel between regions/cities
+2 – internal movement restrictions in place
+
+
+
+S7 International Travel Controls 
+
+0 - No measures
+1 - Screening
+2 - Quarantine arrivals from high-risk regions
+3 - Ban on arrivals from some regions 4 – Ban on all regions or total border closure
+
+
+
+S8 Fiscal Measures 
+
+Record monetary value USD of fiscal stimuli 
+0 - no stimulus recorded
+
+
+
+S9 Monetary Measures
+
+-This must be excluded from the dataset. It is not in the data dictionary nor is it clear what this is measuring. 
+
+
+
+S10 Emergency Investment in Health Care 
+
+-Record monetary value in USD of new short-term spending on health
+0 - no investment recorded 
+
+
+
+S11 Investment in Vaccines 
+
+Record monetary value announced if additional to previously announced spending
+0 - no investment recorded
+
+
+The rest of the variables in both datasets are pretty self explanatory. 
+
+
+As an aside, most variable in the set have an 'Is General' Variable following it.
+This is a binary variable that accounts if a measure was targeted to a specific region/sector. For variables S1-S7 this will be a geographic targetting, and for variables S8-S11, this will be a sectoral targeting (I.E., Stimulus to banking, or airlines, etc.)
+
+
+
+
+
+SOURCES:
+
+GDP Per Capita
+
+https://data.worldbank.org/indicator/NY.GDP.PCAP.CD
+
+
+
+Oxford Covid Dataset
+
+https://www.kaggle.com/paultimothymooney/oxford-covid19-government-response-tracker
+
+
+
+Oxford Data Dictionary
+
+https://www.bsg.ox.ac.uk/sites/default/files/2020-10/BSG-WP-2020-032-v8.pdf
+
+
+
+COVID deaths Dataset
+
+https://www.kaggle.com/ashudata/covid19dataset
+
+
+
+
+
+
+
+
+DATA CLEANING:
+The first step in data cleaning was done outside the .rmd file. I removed all of the 'notes' columns from the dataset, as they were not useful in any sort of analysis and some contained entire paragraphs, making the data extremely hard to work with and throw errors when trying to load in. 
+
+
+
+The first step in the datacleaning in the RMD is to create leaading values for each country. The code below joins a record in the dataset with the new confirmed cases days 7 (lag1NC) and 14 (lag2NC) after the record. This is essential, as most of the measures are instituted when cases are high, and do not immediately take effect. We want to see the effect new measures take a week to two weeks down the road. 
+
+
+```{r}
+
+data3 <- data.frame(data2)
+data3 <- data3 %>%
+group_by(Country) %>%
+mutate(lead1NC = lead(newConfirmed, 7, order_by=Country))
+
+data3 <- data3 %>%
+group_by(Country) %>%
+mutate(lead2NC = lead(newConfirmed, 14, order_by=Country))
+
+data3 <- data3 %>%
+group_by(Country) %>%
+mutate(lead3NC = lead(newConfirmed, 30, order_by=Country))
+```
+
+
+```{r}
+summary(data3)
+```
+
+
+
+The second step in the RMD file will be to get the date formats similar. The easiest way is to use a string manipulation and remove the dashes from data2's date column. Aside from that, all countries beginning with 'The' in data2 are formatted as 'Bahamas, The' and in the oxford set they just remove the 'The', so we'll need to do the same thing. Then, we need to make sure the column names match, and that the categories we join on are of the same type. 
+
+```{r}
+data2 <- data.frame(data3)
+data2$Date <- gsub("-", "", data2$Date)
+data2$Country <- gsub("(,).*","", data2$Country)
+data2 <- rename(data2, CountryName = Country)
+data2$Date <- as.double(data2$Date)
+```
+
+
+
+Now that the dates are removed and the names are fixed, we can focus on joining the two datasets on date and country. Here, when I used an inner join, the dataset was cut down to about 8000 entries. I'm not sure why data2 is so much larger, considering they are about the same time period so I did a little EDA to find out if the oxford set is missing some dates for countries, or if they are just missing countries. In the right-hand side of the terminal in 'values' we can see that they have the same amount of countries (both n1 & n2 are 190, which is the count of countries). So, oxford must just be missing some dates which is fine. But it does bring about the question of why dates are missing in the oxford set but not for the other set. This could just be a function of Oxford excluding the dates for countries that implemented measures and did not have any deaths/cases. As we can see by the second two plots, this is the case. The scale of days where death=0 is much larger for the second dataset. So we'll use a left join in order to keep those days, because we'd also like to keep the rolling death count accurate and uniform on a daily basis. Left joining on the data2 table gives us all of the oxford information and a rolling deathcount. 
+
+```{r}
+
+n1 <- unique(data$CountryName)
+n2 <- unique(data2$CountryName)
+
+
+g1 <- ggplot(data, aes(factor(CountryName))) + geom_bar()
+
+g2 <- ggplot(data2, aes(factor(CountryName))) + geom_bar()
+
+ggarrange(g1,g2, row=1, col = 2)
+
+g3 <- ggplot(data, aes(factor(ConfirmedDeaths))) + geom_bar()
+
+g4 <- ggplot(data2, aes(factor(Death))) + geom_bar()
+
+ggarrange(g3, g4, row = 1, col = 2 )
+
+```
+
+
+
+
+
+Below, we left join the two data frames, so we get all the data from each, and can begin more thorough cleaning. 
+```{r}
+df <- left_join(data2, data, by = c('CountryName', 'Date'))
+
+
+##Dropping the monetary measures column (See S9 in Dictionary)
+df = df[,!(names(df)%in% "S9_Monetary.measures")]
+
+
+##Dropping the ...24 column because it has nothing in it 
+df = df[,!(names(df)%in% "...24")]
+
+
+##Creating a square of stringency index
+
+df$StringencyIndexsq <- df$StringencyIndex^2
+```
+
+
+
+
+There are a lot of missing values in the data-frame, which will only really matter in a few cases. If the 'NA' Values are mostly from poor countries, this may cause a lot of selection bias in our sample, and we would want to drop those countries. So now, we'll check to see if they actually seem random, or if they are skewed towards poorer countries. 
+
+```{r}
+
+
+#This code iterates through all of the different country names, counts the total number of 'NAs' referring to this country 
+#and puts the sum in the list totalNA
+uniques <- unique(df$CountryName)
+
+totalNA <- c() 
+
+
+for(i in 1:190){
+X <- subset(df, CountryName == uniques[i])
+totalNA <- c(totalNA, (sum(is.na(X))))
+}
+
+
+
+
+
+#This code combines the list with the name of countries so we can better see if there is a skew towards poorer countries
+counterNA <- cbind(uniques, totalNA)
+counterNA <- data.frame(counterNA)
+counterNA$totalNA <- as.numeric(counterNA$totalNA)
+counterNA <- rename(counterNA, CountryName = uniques)
+summary(counterNA)
+
+
+```
+
+
+Here, the missing data seems to be evenly distributed, but lets see if it is random. I added the GDP per capita by country not only for this reason, but also because we should probably control for it in further analysis.
+
+```{r}
+#This code reads in GDP, joins it with the number of NAs, and runs a regression of totalNA's based on GDP so we can see if there is a relationship between the economic status of the country and the number of NAs
+
+GDP <- GDP_Per_Capita_
+
+countryGDP <- left_join(counterNA, GDP)
+
+countryGDP <- rename(countryGDP, GDP = '2018')
+```
+
+
+```{r}
+countryGDP$GDP <- as.numeric(countryGDP$GDP)
+
+model1 <- lm(totalNA ~ GDP, data = countryGDP)
+summary(model1)
+
+```
+
+
+So, now we know that the random values are not related to a country's GDP, and we can include them in the analysis given that they are not related to something else and cause a selection bias. 
+
+
+
+
+
+```{r} 
+#combined df with GDP
+GDP <- data.frame(GDP)
+GDP$X2019 <- as.numeric(GDP$X2019)
+GDP$X2018 <- as.numeric(GDP$X2018)
+df <- left_join(df,GDP)
+```
+```{r}
+#New confirmed and death records should not be negative
+df <- df[df$newConfirmed >= 0,]
+df <- df[df$newDeath >= 0,]
+```
+
+```{r}
+dfnewConfirmed <- df[df$newConfirmed > 0,]
+dfnewConfirmed<- dfnewConfirmed %>% 
+    filter(S1_School.closing >= 0) %>% 
+    filter(S2_Workplace.closing >= 0) %>% 
+    filter(S3_Cancel.public.events >= 0) %>% 
+    filter(S4_Close.public.transport >= 0) %>% 
+    filter(S5_Public.information.campaigns >= 0)%>%
+    filter(S6_Restrictions.on.internal.movement >= 0)%>%
+    filter(S7_International.travel.controls >= 0)%>%
+    filter(S8_Fiscal.measures >= 0)%>%
+    filter(S10_Emergency.investment.in.health.care >= 0)%>%
+    filter(S11_Investment.in.Vaccines >= 0)%>%
+    filter(X2019 >= 0) 
+ 
+    
+summary(dfnewConfirmed)
+
+```
+
+
+
+Exploratory Data Analysis: 
+
+```{r}
+#frequency table with general containment measures (general meaning the containment measured was issued nationally)
+#this frequency table shows the number of times countries in this dataset instituted the policies in the chart
+
+generalfrequencies <- c(sum(dfnewConfirmed$S1_IsGeneral, na.rm=TRUE), sum(dfnewConfirmed$S2_IsGeneral, na.rm = TRUE), sum(dfnewConfirmed$S3_IsGeneral, na.rm = TRUE), sum(dfnewConfirmed$S4_IsGeneral, na.rm = TRUE), sum(dfnewConfirmed$S5_IsGeneral, na.rm = TRUE), sum(dfnewConfirmed$S6_IsGeneral, na.rm = TRUE))
+
+generalnames <- c("School Closing", "Workplace Closing", "Cancel Public Events", "Close Public Transport", "Public Information Campaigns", "Restrictions on Internal Movement")
+names(generalfrequencies) <- generalnames
+
+generalfrequencies
+
+
+```
+
+
+```{r}
+#Relationship between Confirmed Cases and Confirmed Deaths
+
+ggplot(data = df, aes(ConfirmedCases, ConfirmedDeaths)) + geom_point(aes(color = CountryCode), show.legend = FALSE) + geom_smooth(aes(ConfirmedCases, ConfirmedDeaths), method = "lm") + labs(x= "Confirmed Cases", y = "Confirmed Deaths", title = "Confirmed Cases vs. Confirmed Deaths") + theme(plot.title=element_text(hjust=0.5))
+```
+
+```{r}
+#relationship between different stringency and confirmed cases
+
+ggplot(data = df, aes(StringencyIndex, ConfirmedCases)) + geom_point(aes(color = StringencyIndex), show.legend = TRUE) + geom_smooth(aes(StringencyIndex, ConfirmedCases), color = "black", method = "loess") + labs(x= "Stringency Index", y = "Confirmed Cases", title = "Confirmed Cases vs. Stringency Index") + theme(plot.title=element_text(hjust=0.5))
+
+
+```
+
+
+```{r}
+#relationship between different stringency and percent of confirmed cases
+
+ggplot(data = df, aes(StringencyIndex, log(ConfirmedCases))) + geom_point(aes(color = StringencyIndex), show.legend = TRUE) + geom_smooth(aes(StringencyIndex, log(ConfirmedCases)), color = "black", method = "loess") + labs(x= "Stringency Index", y = "Log(Confirmed Cases)", title = "Percent of Confirmed Cases vs. Stringency Index") + theme(plot.title=element_text(hjust=0.5))
+
+
+```
+
+```{r}
+#relationship between different stringency and confirmed deaths
+
+ggplot(data = df, aes(StringencyIndex, ConfirmedDeaths)) + geom_point(aes(color = StringencyIndex), show.legend = TRUE) + geom_smooth(aes(StringencyIndex, ConfirmedDeaths), color = "black", method = "loess") + labs(x= "Stringency Index", y = "Confirmed Deaths", title = "Confirmed Deaths vs. Stringency Index") + theme(plot.title=element_text(hjust=0.5))
+
+
+```
+
+
+```{r}
+
+#relationship between different stringency and percent of confirmed deaths
+
+ggplot(data = df, aes(StringencyIndex, log(ConfirmedDeaths))) + geom_point(aes(color = StringencyIndex), show.legend = TRUE) + geom_smooth(aes(StringencyIndex, log(ConfirmedDeaths)), color = "black", method = "loess") + labs(x= "Stringency Index", y = "Log(Confirmed Deaths)", title = "Percent of Confirmed Deaths vs. Stringency Index") + theme(plot.title=element_text(hjust=0.5))
+
+```
+
+
+```{r}
+#visualization showing cases by country for countries with at least 1,000 confirmed cases
+
+dftopcases <- filter(dfnewConfirmed, dfnewConfirmed$ConfirmedCases > 1000)
+
+
+ggplot(data = dftopcases, aes(x=factor(CountryName), y=ConfirmedCases, group=factor(CountryName), fill=factor(CountryName))) + 
+  geom_boxplot() + 
+  labs(title="Cases by Country") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+
+
+```
+
+
+```{r}
+#visualization showing deaths by country for countries with at least 50 confirmed deaths
+
+dftopdeaths <- filter(dfnewConfirmed, dfnewConfirmed$Death > 50)
+
+
+ggplot(data = dftopdeaths, aes(x=factor(CountryName), y=Death, group=factor(CountryName), fill=factor(CountryName))) + 
+  geom_boxplot() + 
+  labs(title="Death by Country") + 
+  theme(legend.position="none", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+
+
+```
+
+```{r}
+#Confirmed cases with respect to countries' 2019 GDP
+#This graph shows that as GDP increases, the number of confirmed cases increases. In fact, we know that among the countries with the greatest number of cases, many of them have high GDP per capita (e.g., the United States, China, France). This is because they are big and populous countries meaning COVID is likely to spread fast. Some countries with lower GDP per capita have more cases than some countries with higher GDP because they may be larger countries, however the average trend is an upward trend in number of cases as GDP increases. 
+
+ggplot(data = df, aes(X2019, log(ConfirmedCases))) + geom_point(aes(color = X2019), show.legend = TRUE) + geom_smooth(aes(X2019, log(ConfirmedCases)), color = "black", method = "lm") + labs(x= "GDP", y = "log(Confirmed Cases)", title = "Confirmed Cases vs. GDP") + theme(plot.title=element_text(hjust=0.5))
+```
+
+
+```{r}
+#Confirmed deaths with respect to countries' 2019 GDP
+#Similarly to the previous graph, this graph follows the same logic that as GDP per capita increases (and therefore population size increases), there are more COVID deaths on average.
+
+ggplot(data = df, aes(X2019, log(ConfirmedDeaths))) + geom_point(aes(color = X2019), show.legend = TRUE) + geom_smooth(aes(X2019, log(ConfirmedCases)), color = "black", method = "lm") + labs(x= "GDP", y = "log(Confirmed Deaths)", title = "Confirmed Deaths vs. GDP") + theme(plot.title=element_text(hjust=0.5))
+```
+
+```{r}
+#This graph shows that countries with stricter school closure measures have a higher number of COVID cases. For example, Finland with 244 cases on 15th of March did not follow any school closure measures (0) while Italy with 24,747 cases on the same day required closings of schools at most levels (2). 
+#This makes sense because as number of cases rise in a country, there is more incentive to close schools in order to decrease the spread of COVID.
+
+ggplot(dfnewConfirmed, aes(x=factor(S1_School.closing), y=log(ConfirmedCases), group=factor(S1_School.closing), fill=factor(S1_School.closing))) + 
+  geom_boxplot() + 
+  labs(title="Cases per school closure measure type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+```{r}
+#Following the same logic as the previous graph, this one shows that as the number of cases increase in a country, the stricter workplace closure measures are.
+
+ggplot(dfnewConfirmed, aes(x=factor(S2_Workplace.closing), y=log(ConfirmedCases), group=factor(S2_Workplace.closing), fill=factor(S2_Workplace.closing))) + 
+  geom_boxplot() + 
+  labs(title="Cases per workplace closure measure type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+```{r}
+#Following the same logic as the previous graphs, this one shows that as the number of cases increase in a country, the stricter workplace closure measures are.
+
+ggplot(dfnewConfirmed, aes(x=factor(S3_Cancel.public.events), y=log(ConfirmedCases), group=factor(S3_Cancel.public.events), fill=factor(S3_Cancel.public.events))) + 
+  geom_boxplot() + 
+  labs(title="Cases per public events cancellation type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+
+```{r}
+#Following the same logic as the previous graphs, this one shows that as the number of cases increase in a country, the stricter public transport closure measures are. However, we can see that some countries with relatively less number of cases have taken this measure particularly seriously compared to countries with more cases. For example, Ukraine, which has a lower number of cases than France required closure of public transport while France did not. 
+
+ggplot(dfnewConfirmed, aes(x=factor(S4_Close.public.transport), y=log(ConfirmedCases), group=factor(S4_Close.public.transport), fill=factor(S4_Close.public.transport))) + 
+  geom_boxplot() + 
+  labs(title="Cases per public transport closure type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+
+```{r}
+#Following the same logic as the previous graphs, this one shows that as the number of cases increase in a country, the more public officials urge caution about COVID.
+
+ggplot(dfnewConfirmed, aes(x=factor(S5_Public.information.campaigns), y=log(ConfirmedCases), group=factor(S5_Public.information.campaigns), fill=factor(S5_Public.information.campaigns))) + 
+  geom_boxplot() + 
+  labs(title="Cases per public information campagain type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+
+```{r}
+#Following the same logic as the previous graphs, this one shows that as the number of cases increase in a country, the stricter internal movement restrictions are.
+
+ggplot(dfnewConfirmed, aes(x=factor(S6_Restrictions.on.internal.movement), y=log(ConfirmedCases), group=factor(S6_Restrictions.on.internal.movement), fill=factor(S6_Restrictions.on.internal.movement))) + 
+  geom_boxplot() + 
+  labs(title="Cases per internal movement restrictions type") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+
+```{r}
+#Following the same logic as the previous graphs, this one shows that as the number of cases increase in a country, the stricter international travel controls are (e.g., quarantine requirements, bans on some arrivals).
+
+ggplot(dfnewConfirmed, aes(x=factor(S7_International.travel.controls), y=log(ConfirmedCases), group=factor(S7_International.travel.controls), fill=factor(S7_International.travel.controls))) + 
+  geom_boxplot() + 
+  labs(title="Cases by Type of International Travel Controls") + 
+  theme(legend.position="right", 
+        plot.title=element_text(hjust=0.5),
+        axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+```
+
+
+```{r}
+#visualization showing the relationship between cases and closing schools
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S1_School.closing))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Recommend closing","Required closing"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and School Closing"))
+```
+
+```{r}
+#visualization showing the relationship between cases and closing workplaces
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S2_Workplace.closing))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Recommend closing","Required closing"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and Workplace Closing"))
+```
+
+```{r}
+#visualization showing the relationship between cases and canceling public events
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S3_Cancel.public.events))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Recommend cancelling","Required cancelling"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and Cancel Public Events"))
+```
+
+
+```{r}
+#visualization showing the relationship between cases and closing public transport
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S4_Close.public.transport))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Recommend closing","Required closing"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and Close Public Transport"))
+```
+
+
+```{r}
+#visualization showing the relationship between cases and public information campaigns
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S5_Public.information.campaigns))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No COVID-19 public information campaingn", "Public officials urging caution about COVID-19"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and Public information campaigns"))
+```
+
+
+```{r}
+#visualization showing the relationship between cases and restriction on internal movement
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S6_Restrictions.on.internal.movement))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Recommend not to travel between regions","internal movement restriction in place"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and Restriction on Internal Movement"))
+```
+
+```{r}
+#visualization showing the relationship between cases and international travel control
+
+ggplot(dfnewConfirmed, aes(x= log(Confirmed), fill = factor(S7_International.travel.controls))) + 
+  geom_density(alpha = 0.5) + 
+  theme(legend.title = element_blank(), plot.title = element_text(hjust=0.5)) + 
+  scale_fill_discrete(labels = c("No Measure", "Screening","Quarantine arrival from high-risk regions","Ban on arrivials from some region"))  + 
+  labs(title = element_text("Density plot of Confirmed Cases and International Travel Control"))
+```
+
+
+
+
+
+
+```{r}
+#creating a data frame for COVID cases in United States
+
+df_us <- df[df$CountryName == "US",]
+df_us<-df_us[df_us$Date >= 20200301, ]
+View(df_us)
+```
+
+
+```{r}
+#visualization showing new confirmed cases in the United States by date
+w<-ggplot(data=df_us, aes(x = newConfirmed, y= factor(Date)))+
+   geom_bar(stat="identity", mapping = aes(fill =df_us$newConfirmed),  alpha = 0.8, size = 1.5) +
+  scale_fill_gradient(low="plum2", high="DarkOrchid4") +
+   geom_label(mapping = aes(label = newConfirmed), size = 1.5, fill = "#F5FFFA", fontface = "bold") +
+     coord_flip() +
+     ggtitle("New Confirmed Cases in US") +
+     xlab("New Confirmed Cases") +
+     ylab("Date")
+w 
+```
+
+
+
+##Preliminary Analysis
+
+```{r}
+#Heteroscedasticity
+ggplot(dfnewConfirmed, aes(sample=newConfirmed )) +
+  stat_qq(color="dodgerblue4") + 
+  stat_qq_line(color="red") +
+  scale_y_continuous(labels=function(y){y/10^6}) +
+  labs(title="QQ Plot for newConfirmed", y="Ordered Values") +
+  theme(plot.title=element_text(hjust=0.5))
+
+```
+
+
+```{r}
+#One solution: log transformation
+ggplot(dfnewConfirmed, aes(sample=log(newConfirmed))) +
+  stat_qq(color="dodgerblue4") + 
+  stat_qq_line(color="red") +
+  labs(title="QQ Plot for log(newConfirmed)", y="Ordered values") +
+  theme(plot.title=element_text(hjust=0.5))
+```
+
+
+
+
+```{r}
+ggplot(dfnewConfirmed, aes(log(newConfirmed))) +
+  geom_histogram(aes(y=..density..), 
+                 bins=50, 
+                 fill="dodgerblue4", 
+                 alpha=0.6, 
+                 color="white") +
+  geom_density(adjust=3)
+```
+```{r}
+#Box Cox
+bc <- boxcox(lm(newConfirmed ~S1_School.closing + S2_Workplace.closing + S3_Cancel.public.events
+          + S4_Close.public.transport + S5_Public.information.campaigns
+          + S6_Restrictions.on.internal.movement + S7_International.travel.controls
+          + S8_Fiscal.measures + S10_Emergency.investment.in.health.care 
+          + S11_Investment.in.Vaccines + X2019 + X2018, data = dfnewConfirmed))
+optimal_lambda <- bc$x[which(bc$y == max(bc$y))]
+round(optimal_lambda, 2)
+
+#Since Boxcox is close to zero, we prefer a log transformation on response variable. But we cannot because we have many zero values.
+```
+```{r}
+ml1 <- lm(log(newConfirmed) ~factor(S1_School.closing) + factor(S2_Workplace.closing) + factor(S3_Cancel.public.events)
+          + factor(S4_Close.public.transport) + factor(S5_Public.information.campaigns)
+          + factor(S6_Restrictions.on.internal.movement) + factor(S7_International.travel.controls)
+          + S8_Fiscal.measures + S10_Emergency.investment.in.health.care 
+          + S11_Investment.in.Vaccines + X2019 + X2018, data = dfnewConfirmed)
+summary(ml1)
+```
+```{r}
+ml2 <- lm(log(newConfirmed) ~factor(S1_School.closing) + factor(S2_Workplace.closing) + factor(S3_Cancel.public.events)
+          + factor(S4_Close.public.transport)
+          + factor(S6_Restrictions.on.internal.movement) + factor(S7_International.travel.controls)
+          + S8_Fiscal.measures 
+          + S11_Investment.in.Vaccines + X2019 + X2018, data = dfnewConfirmed)
+
+summary(ml2)
+```
+```{r}
+library(coefplot)
+require(coefplot)
+coefplot(ml2)
+```
+```{r}
+set.seed(1355) # a seed makes the analysis reproducible 
+# so everyone will get the same results 
+
+ndata <- nrow(dfnewConfirmed)
+# Randomly choose 0.8n indices between 1 and n 
+train_index <- sample(1:ndata, size=0.7*ndata, rep=FALSE)
+test_index <- setdiff(1:ndata, train_index)
+
+# obtain the train dataset and test dataset 
+train <- dfnewConfirmed[train_index,]
+test <- dfnewConfirmed[test_index, ]
+
+
+#Bootstrap the train data, this process will take you about one to two minutes
+set.seed(4)
+trainboot <- train[1,]
+trainboot[,] <- NA
+for (i in 1:10000) {
+  trainboot[i,] <- train[sample(1:636, replace = TRUE,1),]
+}
+
+
+
+```
+
+```{r}
+summary(test)
+```
+
+
+```{r}
+#ml1 on using train dataset
+model_ml1 <- lm(log(newConfirmed) ~factor(S1_School.closing) + factor(S2_Workplace.closing) + factor(S3_Cancel.public.events)
+          + factor(S4_Close.public.transport) + factor(S5_Public.information.campaigns)
+          + factor(S6_Restrictions.on.internal.movement) + factor(S7_International.travel.controls)
+          + S8_Fiscal.measures + S10_Emergency.investment.in.health.care 
+          + S11_Investment.in.Vaccines + X2019 + X2018, data = train)
+summary(model_ml1)
+```
+
+```{r}
+model_ml2 <- lm(log(newConfirmed) ~factor(S1_School.closing) + factor(S2_Workplace.closing) + factor(S3_Cancel.public.events)
+          + factor(S4_Close.public.transport)
+          + factor(S6_Restrictions.on.internal.movement) + factor(S7_International.travel.controls)
+          + S8_Fiscal.measures 
+          + S11_Investment.in.Vaccines + X2019 + X2018, data = train)
+summary(model_ml2)
+```
+
+```{r}
+predictions_log1 <- predict(model_ml1, newdata=test)
+predictions_log2 <- predict(model_ml2, newdata=test)
+true_values <- test$newConfirmed
+```
+
+
+```{r}
+#MAE
+MAE <- function(prediction, true_values) {
+    return (mean(abs(prediction-true_values)))
+}
+```
+
+
+```{r}
+#MAE on ml1
+paste("MAE between exp(model_ml1) and true new confirmed cases: ", MAE(exp(predictions_log1), true_values),".", sep="")
+
+#MAE on ml2
+paste("MAE between exp(model_ml2) and true new confirmed cases: ", MAE(exp(predictions_log2), true_values),".", sep="")
+
+```
+
+
+```{r}
+#RMSE
+RMSE <- function(predictions, true_values) {
+    return (sqrt(mean((predictions-true_values)^2)))
+}
+```
+
+```{r}
+#RMSE on ml1
+paste("RMSE between exp(model_ml1) and new confirmed cases: ", RMSE(exp(predictions_log1), true_values),".", sep="")
+
+#RMSE on ml2
+paste("RMSE between exp(model_ml2) and new confirmed cases: ", RMSE(exp(predictions_log2), true_values),".", sep="")
+
+```
+
+```{r}
+#MAPE
+MAPE <- function(predictions, true_values) {
+    return (mean(abs((predictions - true_values)/true_values)*100))
+}
+```
+
+```{r}
+#MAPE on ml1
+paste("MAPE between exp(model_ml1) and true new confirmed cases: ", MAPE(exp(predictions_log1), true_values),".", sep="")
+
+#MAPE on ml2
+paste("MAPE between exp(model_ml1) and true new confirmed cases: ", MAPE(exp(predictions_log2), true_values),".", sep="")
+```
+
+
+
+
+
+
+
+
+MODELING: 
+
+First, we need to modify the trainboot dataset into a dataset better for lasso regression, meaning we need to remove the country names, dates, and country codes. Otherwise Lasso will just run a prediction using these as the predictors. Another important thing we are doing here is creating a squared term of stringency index, as in the EDA we saw that this typically has a quadratic relationship with deaths, newDeaths, and cases. 
+
+
+
+
+```{r}
+trainbootML <- subset(trainboot, select= -c(CountryName, CountryCode, Date))
+
+dfML <- subset(df, select= -c(CountryName, CountryCode, Date, Confirmed, Death, newConfirmed, newDeath, lead2NC, lead3NC))
+
+
+trainbootML$StringencyIndexsq <- trainbootML$StringencyIndex^2
+
+test$StringencyIndexsq <- test$StringencyIndex^2
+```
+
+```{r}
+trainbootML1 <- subset(trainboot, select= -c(CountryName, CountryCode, Date, Confirmed, Death, newDeath, lead2NC, lead3NC, newConfirmed, ConfirmedDeaths, ConfirmedCases, X))
+
+dfML <- subset(df, select= -c(CountryName, CountryCode, Date, Confirmed, Death, newConfirmed, newDeath, lead2NC, lead3NC))
+
+
+trainbootML$StringencyIndexsq <- trainbootML$StringencyIndex^2
+  
+
+
+
+```
+
+
+RANDOM FOREST:
+
+```{r}
+library(randomForest)
+require(caTools)
+
+sample = sample.split(trainbootML1, SplitRatio = .75)
+train1 = subset(trainbootML1, sample == TRUE)
+test1  = subset(trainbootML1, sample == FALSE)
+dim(train1)
+dim(test1)
+
+rf <- randomForest(lead1NC~.^2, data = train1, na.action = na.exclude)
+
+pred=predict(rf, newdata=test1[-25])
+importance(rf)
+```
+
+
+
+
+
+```{r}
+##LASSO model
+
+
+x_vars <- model.matrix(lead1NC~. , dfML)
+y_var <-dfML$lead1NC
+lambda_seq <- 10^seq(2, -2, by = -.1)
+
+#splitting data into test and train
+set.seed(813)
+train2 = sample(1:nrow(x_vars), nrow(x_vars)/2)
+x_test = (-train2)
+y_test = y_var[x_test]
+
+cv_output <- cv.glmnet(x_vars[train2,], y_var[train2],
+                       alpha = .05, lambda = lambda_seq,
+                       nfolds = 5)
+
+
+##identifying the best lambda
+
+best_lam <- cv_output$lambda.min
+best_lam
+      
+
+
+```
+
+Using the lambda value found above, we will remodel with the best lambda value.
+
+
+
+```{r}
+lasso_best <- glmnet(x_vars[train2,], y_var[train2], alpha = .05, lambda = best_lam)
+coef(lasso_best)
+```
+
+
+
+
+
+```{r}
+
+postLassoModel1 <- lm(lead1NC ~ S1_School.closing + I(S1_School.closing * S1_IsGeneral)  + S2_Workplace.closing +
+I(S2_Workplace.closing * S2_IsGeneral) + S3_Cancel.public.events + I(S3_Cancel.public.events*S3_IsGeneral) + S4_Close.public.transport + I(S4_Close.public.transport *S4_IsGeneral) + (S5_Public.information.campaigns)  + S6_Restrictions.on.internal.movement + 
+I(S6_Restrictions.on.internal.movement * S6_IsGeneral) + S7_International.travel.controls +  S8_Fiscal.measures + S10_Emergency.investment.in.health.care 
+          + S11_Investment.in.Vaccines + X2018 + StringencyIndex + StringencyIndexsq, data = trainbootML)
+
+summary(postLassoModel1)
+```
+
+
+
+
+```{r}
+
+postLassoModel2 <- lm(lead1NC ~ S1_School.closing + I(S1_School.closing * S1_IsGeneral)  + 
+ S2_Workplace.closing + I(S2_Workplace.closing * S2_IsGeneral) +   S3_Cancel.public.events  + I(S3_Cancel.public.events * S3_IsGeneral) + S4_Close.public.transport + I(S4_Close.public.transport *S4_IsGeneral) + (S5_Public.information.campaigns)  + S6_Restrictions.on.internal.movement +
+I(S6_Restrictions.on.internal.movement * S6_IsGeneral) +
+X2018 + StringencyIndex + StringencyIndexsq, data = trainbootML)
+
+summary(postLassoModel2)
+```
+
+
+
+
+```{r}
+
+postLassoModel3 <- lm(lead1NC ~ S1_School.closing + S2_Workplace.closing +
+S3_Cancel.public.events + S4_Close.public.transport + S5_Public.information.campaigns  + S6_Restrictions.on.internal.movement + 
+ X2018 + StringencyIndex + StringencyIndexsq, data = trainbootML)
+
+
+summary(postLassoModel3)
+```
+
+
+
+
+
+Model Evaluations
+
+```{r}
+#Avoid Missing Value in Test Data
+test <- test %>%
+  filter(S1_IsGeneral >= 0)%>%
+  filter(S2_IsGeneral >= 0)%>%
+  filter(S4_IsGeneral >= 0)%>%
+  filter(S6_IsGeneral >= 0)%>%
+  filter(S3_IsGeneral >= 0)
+```
+
+```{r}
+#Apply Regression Result on Test Data
+predictions1 <- predict(postLassoModel1, newdata=)
+predictions2 <- predict(postLassoModel2, newdata=)
+predictions3 <- predict(postLassoModel3, newdata=test)
+true_values <- test$newConfirmed
+```
+
+```{r}
+#MAE
+MAE <- function(prediction, true_values) {
+    return (mean(abs(prediction-true_values)))
+}
+```
+
+```{r}
+#MAE on postLassoModel1
+paste("MAE between postLassoModel1 and true new confirmed cases: ", MAE(predictions1, true_values),".", sep="")
+
+#MAE on postLassoModel2
+paste("MAE between postLassoModel2 and true new confirmed cases: ", MAE(predictions2, true_values),".", sep="")
+
+#MAE on postLassoModel3
+paste("MAE between postLassoModel3 and true new confirmed cases: ", MAE(predictions3, true_values),".", sep="")
+
+```
+
+```{r}
+#RMSE
+RMSE <- function(predictions, true_values) {
+    return (sqrt(mean((predictions-true_values)^2)))
+}
+```
+
+```{r}
+#RMSE on postLassoModel1
+paste("RMSE between postLassoModel1 and true new confirmed cases: ", RMSE(predictions1, true_values),".", sep="")
+
+#RMSE on postLassoModel2
+paste("RMSE between postLassoModel2 and true new confirmed cases: ", RMSE(predictions2, true_values),".", sep="")
+
+#RMSE on postLassoModel3
+paste("RMSE between postLassoModel3 and true new confirmed cases: ", RMSE(predictions3, true_values),".", sep="")
+
+```
+
+```{r}
+#MAPE
+MAPE <- function(predictions, true_values) {
+    return (mean(abs((predictions - true_values)/true_values)*100))
+}
+```
+
+```{r}
+#MAPE on postLassoModel1
+paste("MAPE between postLassoModel1 and true new confirmed cases: ", MAPE(predictions1, true_values),".", sep="")
+
+#MAPE on postLassoModel2
+paste("MAPE between postLassoModel2 and true new confirmed cases: ", MAPE(predictions2, true_values),".", sep="")
+
+#MAPE on postLassoModel3
+paste("MAPE between postLassoModel3 and true new confirmed cases: ", MAPE(predictions3, true_values),".", sep="")
+```
+
+```{r}
+AIC(postLassoModel1)
+AIC(postLassoModel2)
+AIC(postLassoModel3)
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(postLassoModel2)
+```
+
