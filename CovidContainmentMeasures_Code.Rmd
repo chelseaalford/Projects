@@ -1,0 +1,164 @@
+---
+title: "Empirical Economics Project"
+author: "Team 29"
+date: "11/21/2020"
+output: html_document
+---
+
+```{r}
+library("ggplot2")
+library("corrplot")
+library("AER")
+library("tidyverse")
+```
+
+```{r}
+infmort <- read.csv("20201115_InfantMortality_v1.csv")
+```
+
+```{r}
+names(infmort) [3] <- "litRateTotal"
+names(infmort) [4] <- "imrTotal"
+names(infmort) [5] <- "bWeightTotal"
+names(infmort) [6] <- "below15Total"
+names(infmort) [7] <- "immunizedTotal"
+names(infmort) [8] <- "awarenessTotal"
+```
+
+## Data Understanding
+
+```{r}
+num_data <- infmort[,3:length(infmort)]
+cor_data <- cor(num_data)
+corrplot(cor_data, method = "circle", type = "upper")
+```
+
+```{r}
+#relationship between immunization and infant mortality rate
+ggplot(data = infmort, aes(immunizedTotal, imrTotal)) + geom_point(aes(color = imrTotal), show.legend = TRUE) + geom_smooth(aes(immunizedTotal, imrTotal), method = "lm") + labs(x= "Percentage of children fully immunized", y = "Infant mortality rate", title = "Infant Mortality Rate Based on Full immunization") + theme(plot.title=element_text(hjust=0.5))
+```
+
+```{r}
+cor(num_data$immunizedTotal, num_data$imrTotal)
+```
+
+```{r}
+#relationship between immunization and literacy rate
+ggplot(data = infmort, aes(litRateTotal, immunizedTotal)) + geom_point(aes(color = immunizedTotal), show.legend = TRUE) + geom_smooth(aes(litRateTotal, immunizedTotal), method = "lm") + labs(x= "Effective literacy rate (%)", y = "Children fully vaccinated (%)", title = "Full Immunization Based on Literacy Rate") + theme(plot.title=element_text(hjust=0.5))
+```
+```{r}
+#Some relationship between literacy rate and immunizations (could be relevant if used as IV)
+cor(num_data$litRateTotal ,num_data$immunizedTotal)
+```
+```{r}
+#relationship between instrument variable (literacy rate) and outcome variable
+ggplot(data = infmort, aes(litRateTotal, imrTotal)) + geom_point(aes(color = imrTotal), show.legend = TRUE) + geom_smooth(aes(litRateTotal, imrTotal), method = "lm") + labs(x= "Effective literacy rate (%)", y = "Infant mortality rate", title = "Impact of Literacy Rate on infant mortality") + theme(plot.title=element_text(hjust=0.5))
+```
+```{r}
+#Low relationship between literacy rate and IMR (literacy rate could be exogenous)
+cor(num_data$litRateTotal, num_data$imrTotal)
+```
+```{r}
+#relationship between child weighing less than 2.5 kg at birth on infant mortality rate
+ggplot(data = infmort, aes(bWeightTotal, imrTotal)) + geom_point(aes(color = imrTotal), show.legend = TRUE) + geom_smooth(aes(bWeightTotal, imrTotal), method = "lm") + labs(x= "Birthweight less than 2.5kg (%)", y = "Infant mortality rate", title = "Birthweight and infant mortality") + theme(plot.title=element_text(hjust=0.5))
+```
+```{r}
+#Low correlation between birthweight and IMR
+cor(num_data$bWeightTotal, num_data$imrTotal)
+```
+```{r}
+#relationship between percentage of population below 15 years old on infant mortality rate
+ggplot(data = infmort, aes(below15Total, imrTotal)) + geom_point(aes(color = imrTotal), show.legend = TRUE) + geom_smooth(aes(below15Total, imrTotal), method = "lm") + labs(x= "Population below 15 years old (%)", y = "Infant mortality rate", title = "Population below 15 years old and infant mortality") + theme(plot.title=element_text(hjust=0.5))
+```
+```{r}
+#Low correlation
+cor(num_data$below15Total, num_data$imrTotal)
+```
+## Modeling 
+
+```{r}
+#Regression of infant mortality on immunization using no controls
+m1 <- lm(imrTotal ~  immunizedTotal,data = infmort)
+summary(m1)
+```
+
+```{r}
+#IV Regression of infant mortality on immunization using literacy rate as instrumental variable
+#The coefficient (-0.78) for immunization using IV is less than the coefficient using linear regression (-0.49). Therefore, due to the omission of relevant variables, there is a positive bias on the coefficient when we use OLS. This means OLS underestimated the negative impact of immunizations on infant mortality rate.
+iv1 <- ivreg(imrTotal ~ immunizedTotal | litRateTotal, data = infmort)
+summary(iv1)
+```
+
+```{r}
+library(fastDummies)
+```
+
+```{r}
+#Test for relevance of literacy rate and endogeneity of the immunization variable (using iv1, which does not include controls)
+#Weak instrument test: H0: literacy rate is a weak instrument. However, since p-value is low, we reject H0, meaning literacy is a relevant instrument.
+#Hausman test: H0: Immunization is exogenous. However, we reject H0 at the 5% significance level, meaning immunization is endogenous.
+summary(iv1, diagnostics = TRUE)
+```
+
+```{r}
+#We now run the regression of infant mortality rate on immunization using controls and no instruments.
+#The controls are the states in which the districts are located and the percentage of children with birth weights less than 2.5 kg.
+#IMR equation:
+
+lm1 <- lm(imrTotal ~ immunizedTotal + factor(State_Name) + bWeightTotal, data = infmort)
+summary(lm1)
+```
+
+```{r}
+#iv2 - includes controls
+#We now run an IV regression with literacy rate as the instrument variable as well but When we control for other factors, the impact of immunization is higher on infant mortality rate than when we do not include controls (-1.03 for iv2 compared to -0.78 for iv1)
+iv2 <- ivreg(imrTotal ~ immunizedTotal + factor(State_Name) + bWeightTotal| litRateTotal + factor(State_Name) +bWeightTotal , data = infmort)
+summary(iv2)
+```
+
+```{r}
+#Similar to iv1, literacy rate turns out to be relevant to immunizations according to the Weak Instruments Test and immunizations endogenous according to the Wu-Hausman Test. This confirms the fact that an OVB exists and that literacy rate is an appropriate IV to solve for it. 
+summary(iv2, diagnostics = TRUE)
+```
+
+
+```{r}
+bptest(iv2)
+resid1<-resid(iv2)                # Grab the residuals
+plot(infmort$imrTotal,resid1)     # plot residuals against price. Some semblance 
+                                  # of hetero.  Variable of residuals seems to rise with                                      log price. 
+plot(infmort$imrTotal,resid1^2) 
+robust.se(iv2)
+vif(iv2)
+```
+## Simultaneity Bias
+
+```{r}
+# We have imrTotal as a function of immunizedTotal, factor(State_Name) and bWeightTotal
+#However, immunizedTotal is also defined as a function of imrTotal. This is because we expect the percentage of fully immunized children to increase as the infant mortality rate increases. Parents could be more inclined to immunize their children as the infant mortality rate increases.
+#We can define immunizedTotal as a function of imrTotal, percentage of women married before 18 years old and percentage of population younger than 15 years old.
+#Therefore, the IMR equation suffers from simultaneity bias. We therefore cannot use OLS and cannot trust the coefficient of immunizedTotal.
+
+#Immunization equation:
+lm_sim <- lm(immunizedTotal ~ imrTotal + awarenessTotal + below15Total, data = infmort)
+summary(lm_sim)
+```
+
+```{r}
+#awarenessTotal is an exogenous variable present in the immunization equation and absent from the IMR equation. This satisfies the exogeneity rule for awarenessTotal as an IV from the order condition. 
+#awarenessTotal is relevant in the immunization equation as it has a non-zero and significant coefficient (0.32).
+#It therefore seems like the IMR equation is identified and awarenessTotal could be used as an instrument variable to solve for the simultaneity bias.
+#When we run the following IV regression, we can then estimate the coefficient/ causal impact of immunizedTotal on infant mortality rate.
+iv_sim <- ivreg(imrTotal ~ immunizedTotal + factor(State_Name) + bWeightTotal | awarenessTotal + factor(State_Name) + bWeightTotal, data = infmort)
+summary(iv_sim)
+```
+
+```{r}
+bptest(iv_sim)
+resid2<-resid(iv_sim)                # Grab the residuals
+plot(infmort$imrTotal,resid2)        # plot residuals against price. Some semblance 
+                                     # of hetero.  Variable of residuals seems to rise                                           with log price. 
+plot(infmort$imrTotal,resid1^2) 
+robust.se(iv_sim)
+vif(iv_sim)
+```
