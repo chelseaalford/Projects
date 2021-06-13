@@ -17,7 +17,7 @@ I also completed several projects in SQL and Tableau that I am unable to share d
        Analyzed team dynamics using network analysis, sentiment analysis, and silo analysis.
 7. **Predictive Modeling for COVID-19 Containment Measures**
        Utilized random forest modeling, bootstrapping, linear regression, and data visualization to examine effect of containment measures on the current              spread of COVID-19. Highlighted effective and ineffective measures in curbing the spread of the virus.
-8. **Reducing Departure Delays at RDU Dashboard **
+8. **Reducing Departure Delays at RDU Dashboard**
        Created an interactive dashboard in Tableau visualizing departure delays at RDU airport. Identified the root causes of delays and recommended the              implementation of a 3-sigma control limit monitoring system as a solution.
 9. **Regression Analysis on Infant Mortality in India**
        Analyzed infant mortality rates in India with multivariate linear regression using ordinary least squares, instrumental variables, and simultaneous            equations.
