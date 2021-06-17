@@ -23,6 +23,6 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 10. **Regression Analysis on Red Wine:**
        Utilized linear regression, bootstrapping, random forest modeling, and classification trees to build a model that predicts the quality of any given red        wine.
 11. **Spotify Predictive Model:**
-       Developed four linear regression models which identify the variables most highly correlated with a song's popularity in various muscial genres. 
+       Developed four linear regression models which identify the variables most highly correlated with a song's popularity in various musical genres. 
 12. **Trader Joe's Corporate Strategy:**
        Developed a comprehensive industry analysis of the grocery industry as well as a detailed consulting report in which we provide recommendations to              company executives based on our thorough analysis. Leveraged strategic tools including VRIN analysis, enivornmental analysis, Porter's five forces a            analysis, SWOT analysis, competitor analysis, and activity systems analysis.
