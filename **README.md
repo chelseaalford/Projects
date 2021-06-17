@@ -3,7 +3,7 @@ Here are the projects I completed, either individually or as a team, during my m
 
 I also completed several projects in SQL and Tableau that I am unable to share due to privacy restrictions.
 
-1. **Decision Tree Analysis:** Built a decision tree modeling uncertainites in a litigation case using sensitivity analysis, VOI analysis, and utility analysis.
+1. **Decision Tree Analysis:** Built a decision tree modeling uncertainties in a litigation case using sensitivity analysis, VOI analysis, and utility analysis.
 2. **Health Care Analytics:**
        Performed data exploration, visualization, and linear regression to derive important insights from health care data.
 3. **Monte Carlo Simulation:**
