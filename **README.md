@@ -1,8 +1,6 @@
 # Projects
 Here are the projects I completed, either individually or as a team, during my masters program at The Fuqua School of Business.
 
-I also completed several projects in SQL and Tableau that I am unable to share due to privacy restrictions.
-
 1. **Decision Tree Analysis:** Built a decision tree modeling uncertainties in a litigation case using sensitivity analysis, VOI analysis, and utility analysis.
 2. **Health Care Analytics:**
        Performed data exploration, visualization, and linear regression to derive important insights from health care data.
@@ -26,3 +24,11 @@ I also completed several projects in SQL and Tableau that I am unable to share d
        Developed four linear regression models which identify the variables most highly correlated with a song's popularity in various musical genres. 
 12. **Trader Joe's Corporate Strategy:**
        Developed a comprehensive industry analysis of the grocery industry as well as a detailed consulting report in which we provide recommendations to              company executives based on our thorough analysis. Leveraged strategic tools including VRIN analysis, environmental analysis, Porter's five forces a            analysis, SWOT analysis, competitor analysis, and activity systems analysis.
+13.	**Inventory Management Simulation:** Managed the inventory for a simulated lab using an (r, Q) inventory model. Monitored backlog, purchasing, ordering, and holding costs, lead times, processing time, capacity, utilization, and supply and demand across the lab to maximize profit within the simulated environment.  
+
+I also completed several projects in SQL and Tableau that I am unable to share due to privacy restrictions. 
+Below are brief descriptions of these projects, though there is no documentation of them in my Projects folder. 
+
+14.	Dognition Data Querying: Queried data in SQL for Dognition pet company. Performed data cleaning and gathered impactful data insights on customer retention. 
+15.	Baseball Data Querying: Queried MLB data deriving insights on salary efficiencies, win percentages, player health, postseason performance, and homerun records. Utilized subqueries, CTEs, joins, and window functions to perform analysis in SQL.
+
