@@ -11,7 +11,7 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 4. **NBA Case Study:**
        Employed people analytic tools to identify top NBA talent and quantify the benefits of talent acquisition. Used a multivariate linear regression built using the Lasso method to assess players’ contracts.
 5. **Optimization Model:**
-       Built an optimization model to maximize profit given production constraints. Employed sensitivity analysis to explore various optimal solutions.
+       Built an optimization model to maximize profit given production constraints. Employed sensitivity analysis on plant efficiency, supply constraints, and cost to explore various optimal solutions.
 6. **People Analytics:**
        Analyzed team dynamics using network analysis, sentiment analysis, and silo analysis.
 7. **Predictive Modeling for COVID-19 Containment Measures:**
