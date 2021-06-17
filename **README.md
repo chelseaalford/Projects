@@ -30,5 +30,5 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 Below are brief descriptions of these projects, though there is no documentation of them in my Projects folder. 
 
 14.	**Dognition Data Querying:** Queried data in SQL for Dognition pet company. Performed data cleaning and gathered impactful data insights on customer retention. 
-15.	**Baseball Data Querying:** Queried MLB data deriving insights on salary efficiencies, win percentages, player health, postseason performance, and homerun records. Utilized subqueries, CTEs, joins, and window functions to perform analysis in SQL.
+15.	**Baseball Data Querying:** Queried MLB data, deriving insights on salary efficiencies, win percentages, player health, postseason performance, and homerun records. Utilized subqueries, CTEs, joins, and window functions to perform analysis in SQL.
 16.	**Sports Analytics with Duke Baseball:** Built interactive dashboard in Tableau utilizing pitching data to understand factors leading to pitching success. Communicated insights to the team using data visualizations to facilitate improvements in pitching and overall team performance.
