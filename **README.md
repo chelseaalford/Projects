@@ -25,4 +25,4 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 11. **Spotify Predictive Model:**
        Developed four linear regression models which identify the variables most highly correlated with a song's popularity in various musical genres. 
 12. **Trader Joe's Corporate Strategy:**
-       Developed a comprehensive industry analysis of the grocery industry as well as a detailed consulting report in which we provide recommendations to              company executives based on our thorough analysis. Leveraged strategic tools including VRIN analysis, enivornmental analysis, Porter's five forces a            analysis, SWOT analysis, competitor analysis, and activity systems analysis.
+       Developed a comprehensive industry analysis of the grocery industry as well as a detailed consulting report in which we provide recommendations to              company executives based on our thorough analysis. Leveraged strategic tools including VRIN analysis, enivronmental analysis, Porter's five forces a            analysis, SWOT analysis, competitor analysis, and activity systems analysis.
