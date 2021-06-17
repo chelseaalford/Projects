@@ -19,7 +19,7 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 8. **Reducing Departure Delays at RDU Dashboard:**
        Created an interactive dashboard in Tableau visualizing departure delays at RDU airport. Identified the root causes of delays and recommended the              implementation of a 3-sigma control limit monitoring system as a solution.
 9. **Regression Analysis on Infant Mortality in India:**
-       Analyzed infant mortality rates in India with multivariate linear regression using ordinary least squares, instrumental variables, and simultaneous            equations.
+       Analyzed infant mortality rates in India with multivariate linear regression using ordinary least squares. Explored the effect of instrumental variables on omitted variable bias and simultaneous equations on simultaneity bias.
 10. **Regression Analysis on Red Wine:**
        Utilized linear regression, bootstrapping, random forest modeling, and classification trees to build a model that predicts the quality of any given red        wine.
 11. **Spotify Predictive Model:**
