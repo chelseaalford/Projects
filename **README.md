@@ -9,7 +9,7 @@ I also completed several projects in SQL and Tableau that I am unable to share d
 3. **Monte Carlo Simulation:**
        Employed a Monte Carlo simulation to identify an optimal order quantity given uncertainties in production. Explored various optimal solutions using            utility theory analysis, VOI analysis, and probabilistic dependence.  
 4. **NBA Case Study:**
-       Employed people analytic tools to identify top NBA talent and quantify the benefits of talent acquisition. 
+       Employed people analytic tools to identify top NBA talent and quantify the benefits of talent acquisition. Used a multivariate linear regression built using the Lasso method to assess players’ contracts.
 5. **Optimization Model:**
        Built an optimization model to maximize profit given production constraints. Employed sensitivity analysis to explore various optimal solutions.
 6. **People Analytics:**
